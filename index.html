@@ -3,262 +3,383 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Seilspring-Zähler Pro</title>
+    <title>Seilspring-Zähler</title>
     <style>
         :root {
-            --bg-color: #121212;
-            --card-bg: #1e1e1e;
-            --text-color: #ffffff;
-            --accent-color: #00adb5;
-            --danger-color: #ff2e93;
+            --bg: #0f0f13; --card: #1a1a22; --border: #2a2a38;
+            --accent: #00e5ff; --danger: #ff2e93; --muted: #55556a; --text: #e0e0ee;
         }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: background-color 0.1s ease;
-        }
-        .container {
-            max-width: 500px;
-            width: 100%;
-            background: var(--card-bg);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            box-sizing: border-box;
-        }
-        h1 { text-align: center; margin-top: 0; color: var(--accent-color); font-size: 1.8rem; }
-        .counter-display {
-            font-size: 5rem;
-            font-weight: bold;
-            text-align: center;
-            margin: 20px 0;
-            color: var(--text-color);
-            text-shadow: 0 0 10px rgba(0,173,181,0.3);
-        }
-        .control-group {
-            margin-bottom: 20px;
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            border-radius: 8px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-        input[type="range"] {
-            width: 100%;
-            accent-color: var(--accent-color);
-        }
-        .val-display {
-            float: right;
-            color: var(--accent-color);
-        }
-        .btn {
-            width: 100%;
-            padding: 15px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-            margin-bottom: 10px;
-        }
-        .btn-start { background-color: var(--accent-color); color: #fff; }
-        .btn-start.active { background-color: var(--danger-color); }
-        .btn-reset { background-color: #333; color: #fff; }
-        .visualizer {
-            width: 100%;
-            height: 120px;
-            background: #000;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        .status {
-            text-align: center;
-            font-style: italic;
-            color: #888;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; padding: 16px; font-size: 14px; }
+        .app { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 10px; }
+        h1 { font-size: 1.3rem; color: var(--accent); font-weight: 700; letter-spacing: .05em; text-align: center; padding: 8px 0 4px; }
+
+        /* Stats */
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+        .stat.big { grid-column: 1/-1; text-align: center; }
+        .stat-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 4px; }
+        .stat-num { font-size: 4rem; font-weight: 800; line-height: 1; color: var(--text); transition: color .1s; }
+        .stat-num.small { font-size: 2rem; }
+        .stat-num.flash { color: var(--accent); }
+        .stat-unit { font-size: .65rem; color: var(--muted); margin-top: 2px; }
+        .spm-bar { height: 2px; background: var(--border); border-radius: 1px; margin-top: 8px; overflow: hidden; }
+        .spm-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--danger)); transition: width .5s; width: 0%; }
+
+        /* Visualizer */
+        .viz { background: #000; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        canvas { display: block; width: 100%; height: 90px; }
+
+        /* Buttons */
+        .btn-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+        .btn { border: none; border-radius: 8px; font: 600 .85rem system-ui; cursor: pointer; padding: 13px 18px; text-transform: uppercase; letter-spacing: .05em; transition: opacity .15s; }
+        .btn:hover { opacity: .85; }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary.stop { background: var(--danger); color: #fff; }
+        .btn-ghost { background: var(--border); color: var(--muted); }
+
+        /* Settings panel */
+        .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .panel-tab-row { display: flex; border-bottom: 1px solid var(--border); }
+        .tab { flex: 1; padding: 9px; text-align: center; font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); cursor: pointer; border: none; background: none; transition: color .15s; }
+        .tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); margin-bottom: -1px; }
+        .tab-body { display: none; flex-direction: column; gap: 14px; padding: 14px; }
+        .tab-body.active { display: flex; }
+
+        /* Sliders */
+        .row { display: flex; flex-direction: column; gap: 5px; }
+        .row-header { display: flex; justify-content: space-between; color: var(--muted); font-size: .72rem; }
+        .row-header span:last-child { color: var(--accent); }
+        input[type=range] { width: 100%; accent-color: var(--accent); }
+
+        /* Mode toggle */
+        .toggle-row { display: flex; gap: 6px; }
+        .tog { flex: 1; padding: 7px; border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 7px; font-size: .68rem; cursor: pointer; text-transform: uppercase; letter-spacing: .08em; transition: all .15s; }
+        .tog.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,.07); }
+
+        /* Status */
+        .status-row { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); transition: background .3s; }
+        .dot.on { background: #7fff00; box-shadow: 0 0 6px #7fff00; animation: blink 1s infinite; }
+        @keyframes blink { 0%,100%{opacity:1}50%{opacity:.4} }
+
+        .flash-overlay { position: fixed; inset: 0; background: rgba(0,229,255,.04); pointer-events: none; opacity: 0; transition: opacity .08s; }
+        .flash-overlay.on { opacity: 1; }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>Seilspring-Zähler</h1>
-    <div class="status" id="status">Mikrofon: Aus</div>
-    <div class="counter-display" id="counter">0</div>
-    <canvas class="visualizer" id="visualizer"></canvas>
-    <button class="btn btn-start" id="startBtn">Zuhören starten</button>
-    <button class="btn btn-reset" id="resetBtn">Zähler zurücksetzen</button>
+<div class="flash-overlay" id="flashOverlay"></div>
+<div class="app">
+    <h1>⬡ Sprungzähler</h1>
 
-    <div class="control-group">
-        <label>Frequenz-Bereich ab:<span class="val-display" id="freqVal">4000 Hz</span></label>
-        <input type="range" id="freqSlider" min="1000" max="12000" step="100" value="4000">
+    <div class="status-row">
+        <div class="dot" id="dot"></div>
+        <span id="statusText">Bereit</span>
     </div>
-    <div class="control-group">
-        <label>Mikrofon-Verstärkung<span class="val-display" id="gainVal">5.0x</span></label>
-        <input type="range" id="gainSlider" min="1" max="15" step="0.5" value="5">
+
+    <div class="stats">
+        <div class="stat big">
+            <div class="stat-label">Sprünge gesamt</div>
+            <div class="stat-num" id="counter">0</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Sprünge / Min</div>
+            <div class="stat-num small" id="spmVal">—</div>
+            <div class="stat-unit">SPM</div>
+            <div class="spm-bar"><div class="spm-fill" id="spmBar"></div></div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Letzter Sprung</div>
+            <div class="stat-num small" id="lastJump">—</div>
+            <div class="stat-unit">Sekunden</div>
+        </div>
     </div>
-    <div class="control-group">
-        <label>Empfindlichkeit<span class="val-display" id="threshVal">3</span></label>
-        <input type="range" id="threshSlider" min="0" max="50" step="0.5" value="3">
+
+    <div class="viz"><canvas id="canvas"></canvas></div>
+
+    <div class="btn-row">
+        <button class="btn btn-primary" id="startBtn">Starten</button>
+        <button class="btn btn-ghost" id="resetBtn">Reset</button>
     </div>
-    <div class="control-group">
-        <label>Sperrzeit (Holdoff)<span class="val-display" id="holdoffVal">300 ms</span></label>
-        <!-- Neuer Regler für die minimale Pause zwischen zwei gezählten Sprüngen -->
-        <input type="range" id="holdoffSlider" min="150" max="600" step="10" value="300">
+
+    <div class="panel">
+        <div class="panel-tab-row">
+            <button class="tab active" onclick="showTab('basic')">Einstellungen</button>
+            <button class="tab" onclick="showTab('advanced')">Erweitert</button>
+        </div>
+
+        <div class="tab-body active" id="tab-basic">
+            <div>
+                <div class="row-header" style="margin-bottom:7px;"><span>Erkennungs-Modus</span></div>
+                <div class="toggle-row">
+                    <button class="tog active" id="modeAuto" onclick="setMode('auto')">Auto</button>
+                    <button class="tog" id="modeManual" onclick="setMode('manual')">Manuell</button>
+                </div>
+            </div>
+            <div class="row" id="manualRow" style="display:none">
+                <div class="row-header"><span>Schwellenwert</span><span id="dThresh">12</span></div>
+                <input type="range" id="threshSlider" min="2" max="60" step="0.5" value="12"
+                    oninput="document.getElementById('dThresh').textContent=this.value">
+            </div>
+            <div class="row">
+                <div class="row-header"><span>Mikrofon-Verstärkung</span><span id="dGain">4×</span></div>
+                <input type="range" id="gainSlider" min="1" max="15" step="0.5" value="4"
+                    oninput="document.getElementById('dGain').textContent=this.value+'×'; updateGain()">
+            </div>
+            <div class="row">
+                <div class="row-header"><span>Sperrzeit (Holdoff)</span><span id="dHoldoff">280 ms</span></div>
+                <input type="range" id="holdoffSlider" min="150" max="600" step="10" value="280"
+                    oninput="document.getElementById('dHoldoff').textContent=this.value+' ms'">
+            </div>
+        </div>
+
+        <div class="tab-body" id="tab-advanced">
+            <!-- Adaptive -->
+            <div class="row">
+                <div class="row-header"><span>Rauschboden-Lernrate</span><span id="dNoiseAlpha">0.004</span></div>
+                <input type="range" id="noiseAlphaSlider" min="0.001" max="0.02" step="0.001" value="0.004"
+                    oninput="document.getElementById('dNoiseAlpha').textContent=parseFloat(this.value).toFixed(3)">
+            </div>
+            <div class="row">
+                <div class="row-header"><span>Schwellen-Multiplikator</span><span id="dMult">2.8×</span></div>
+                <input type="range" id="multSlider" min="1.5" max="6" step="0.1" value="2.8"
+                    oninput="document.getElementById('dMult').textContent=parseFloat(this.value).toFixed(1)+'×'">
+            </div>
+            <!-- Frequency weights -->
+            <div class="row-header" style="margin-bottom:2px;padding-top:4px;border-top:1px solid var(--border)"><span>Frequenz-Gewichte (Energie-Erkennung)</span></div>
+            <div class="row">
+                <div class="row-header"><span>&lt; 300 Hz (Tief/Rumpel)</span><span id="dW0">0.2</span></div>
+                <input type="range" id="w0" min="0" max="2" step="0.05" value="0.2"
+                    oninput="document.getElementById('dW0').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+            <div class="row">
+                <div class="row-header"><span>300–800 Hz</span><span id="dW1">0.6</span></div>
+                <input type="range" id="w1" min="0" max="2" step="0.05" value="0.6"
+                    oninput="document.getElementById('dW1').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+            <div class="row">
+                <div class="row-header"><span>800–3000 Hz (Haupt-Impuls)</span><span id="dW2">1.0</span></div>
+                <input type="range" id="w2" min="0" max="2" step="0.05" value="1.0"
+                    oninput="document.getElementById('dW2').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+            <div class="row">
+                <div class="row-header"><span>3000–8000 Hz (Seil)</span><span id="dW3">0.9</span></div>
+                <input type="range" id="w3" min="0" max="2" step="0.05" value="0.9"
+                    oninput="document.getElementById('dW3').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+            <div class="row">
+                <div class="row-header"><span>8000–14000 Hz</span><span id="dW4">0.5</span></div>
+                <input type="range" id="w4" min="0" max="2" step="0.05" value="0.5"
+                    oninput="document.getElementById('dW4').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+            <!-- Detection state machine -->
+            <div class="row-header" style="margin-bottom:2px;padding-top:4px;border-top:1px solid var(--border)"><span>Erkennungs-Parameter</span></div>
+            <div class="row">
+                <div class="row-header"><span>Deaktivierungs-Hysterese</span><span id="dHyst">0.7</span></div>
+                <input type="range" id="hystSlider" min="0.3" max="0.95" step="0.05" value="0.7"
+                    oninput="document.getElementById('dHyst').textContent=parseFloat(this.value).toFixed(2)">
+            </div>
+            <div class="row">
+                <div class="row-header"><span>FFT-Glättung</span><span id="dSmooth">0.5</span></div>
+                <input type="range" id="smoothSlider" min="0" max="0.95" step="0.05" value="0.5"
+                    oninput="document.getElementById('dSmooth').textContent=parseFloat(this.value).toFixed(2); updateSmooth()">
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
-    let audioContext, analyser, microphone, gainNode, isListening = false, count = 0, animationFrameId;
-    let lastTriggerTime = 0;
-    let peakHoldArray = []; 
-    let peakHoldTimeArray = []; 
+let audioCtx, analyser, microphone, gainNode;
+let isListening = false, rafId;
+let count = 0, lastTriggerTime = 0;
+let mode = 'auto';
+let noiseFloor = 20, adaptiveThresh = 25;
+let lastJumpTS = null, lastJumpInterval = null;
+const jumpTimes = [];
 
-    const startBtn = document.getElementById('startBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const counterDisplay = document.getElementById('counter');
-    const statusDisplay = document.getElementById('status');
-    const canvas = document.getElementById('visualizer');
-    const canvasCtx = canvas.getContext('2d');
-    const freqSlider = document.getElementById('freqSlider');
-    const freqVal = document.getElementById('freqVal');
-    const gainSlider = document.getElementById('gainSlider');
-    const gainVal = document.getElementById('gainVal');
-    const threshSlider = document.getElementById('threshSlider');
-    const threshVal = document.getElementById('threshVal');
-    const holdoffSlider = document.getElementById('holdoffSlider');
-    const holdoffVal = document.getElementById('holdoffVal');
+const STATE_IDLE = 0, STATE_ACTIVE = 1, STATE_HOLDOFF = 2;
+let state = STATE_IDLE;
 
-    freqSlider.oninput = () => freqVal.innerText = `${freqSlider.value} Hz`;
-    gainSlider.oninput = () => {
-        gainVal.innerText = `${gainSlider.value}x`;
-        if (gainNode && audioContext) {
-            gainNode.gain.setValueAtTime(parseFloat(gainSlider.value), audioContext.currentTime);
-        }
-    };
-    threshSlider.oninput = () => threshVal.innerText = threshSlider.value;
-    holdoffSlider.oninput = () => holdoffVal.innerText = `${holdoffSlider.value} ms`;
+const $ = id => document.getElementById(id);
 
-    resetBtn.onclick = () => { count = 0; counterDisplay.innerText = count; };
-    startBtn.onclick = async () => { if (isListening) { stopAudio(); } else { await startAudio(); } };
+// Tab switching
+function showTab(name) {
+    document.querySelectorAll('.tab-body').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    $('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+}
 
-    async function startAudio() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, 
-                video: false 
-            });
-            
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            microphone = audioContext.createMediaStreamSource(stream);
-            
-            gainNode = audioContext.createGain();
-            gainNode.gain.setValueAtTime(parseFloat(gainSlider.value), audioContext.currentTime);
-            
-            analyser.fftSize = 4096; 
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            
-            peakHoldArray = new Uint8Array(bufferLength);
-            peakHoldTimeArray = new Float64Array(bufferLength);
-            
-            microphone.connect(gainNode);
-            gainNode.connect(analyser);
-            
-            isListening = true;
-            startBtn.innerText = "Zuhören stoppen";
-            startBtn.classList.add('active');
-            statusDisplay.innerText = "Höre im ungefilterten Roh-Modus...";
+function setMode(m) {
+    mode = m;
+    $('modeAuto').classList.toggle('active', m === 'auto');
+    $('modeManual').classList.toggle('active', m === 'manual');
+    $('manualRow').style.display = m === 'manual' ? 'flex' : 'none';
+}
 
-            function draw() {
-                if (!isListening) return;
-                animationFrameId = requestAnimationFrame(draw);
-                analyser.getByteFrequencyData(dataArray);
+function updateGain() {
+    if (gainNode && audioCtx) gainNode.gain.setValueAtTime(parseFloat($('gainSlider').value), audioCtx.currentTime);
+}
+function updateSmooth() {
+    if (analyser) analyser.smoothingTimeConstant = parseFloat($('smoothSlider').value);
+}
 
-                if(canvas.width !== canvas.clientWidth) {
-                    canvas.width = canvas.clientWidth;
-                    canvas.height = canvas.clientHeight;
-                }
-                canvasCtx.fillStyle = '#000000';
-                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-                const startFreqCutoff = parseInt(freqSlider.value);
-                const threshold = parseFloat(threshSlider.value);
-                const currentHoldoff = parseInt(holdoffSlider.value); // Auslesen des aktuellen Sliders
-                const sampleRate = audioContext.sampleRate;
-                const now = Date.now();
-                
-                let totalEnergyInWindow = 0;
-                let binsInWindowCount = 0;
-                const barWidth = canvas.width / bufferLength;
-                
-                for (let i = 0; i < bufferLength; i++) {
-                    const currentBinFreq = (i * sampleRate) / analyser.fftSize;
-                    const val = dataArray[i];
+function getWeights() {
+    return [
+        { maxHz: 300,   w: parseFloat($('w0').value) },
+        { maxHz: 800,   w: parseFloat($('w1').value) },
+        { maxHz: 3000,  w: parseFloat($('w2').value) },
+        { maxHz: 8000,  w: parseFloat($('w3').value) },
+        { maxHz: 14000, w: parseFloat($('w4').value) },
+    ];
+}
 
-                    if (val > peakHoldArray[i]) {
-                        peakHoldArray[i] = val;
-                        peakHoldTimeArray[i] = now;
-                    } else if (now - peakHoldTimeArray[i] > 1000) {
-                        peakHoldArray[i] = Math.max(0, peakHoldArray[i] - 1.5); 
-                    }
+function computeEnergy(data, sampleRate) {
+    const binHz = sampleRate / (analyser.fftSize);
+    const weights = getWeights();
+    let wSum = 0, wTotal = 0;
+    for (let i = 0; i < data.length; i++) {
+        const f = i * binHz;
+        if (f < 150) continue;
+        let w = 0;
+        for (const zone of weights) { if (f < zone.maxHz) { w = zone.w; break; } }
+        if (f >= 14000) break;
+        wSum += data[i] * w;
+        wTotal += w;
+    }
+    return wTotal > 0 ? wSum / wTotal : 0;
+}
 
-                    const isInsideTargetWindow = (currentBinFreq >= startFreqCutoff);
-                    
-                    if (isInsideTargetWindow) {
-                        canvasCtx.fillStyle = 'rgb(0, 173, 185)'; 
-                        totalEnergyInWindow += val;
-                        binsInWindowCount++;
-                    } else {
-                        canvasCtx.fillStyle = `rgb(${val/3}, ${val/3}, ${val/3})`; 
-                    }
+function updateSPM() {
+    const now = Date.now();
+    while (jumpTimes.length > 0 && now - jumpTimes[0] > 20000) jumpTimes.shift();
+    if (jumpTimes.length < 2) { $('spmVal').textContent = '—'; $('spmBar').style.width = '0%'; return; }
+    const span = (jumpTimes[jumpTimes.length - 1] - jumpTimes[0]) / 1000;
+    const spm = Math.round((jumpTimes.length - 1) / span * 60);
+    $('spmVal').textContent = spm;
+    $('spmBar').style.width = Math.min(100, Math.max(0, (spm - 40) / 160 * 100)) + '%';
+}
 
-                    const barHeight = (val / 255) * canvas.height;
-                    const x = i * barWidth;
-                    canvasCtx.fillRect(x, canvas.height - barHeight, barWidth + 1, barHeight);
+$('resetBtn').onclick = () => {
+    count = 0; $('counter').textContent = '0';
+    jumpTimes.length = 0; $('spmVal').textContent = '—'; $('spmBar').style.width = '0%';
+    $('lastJump').textContent = '—'; lastJumpTS = null;
+    noiseFloor = 20; adaptiveThresh = 25;
+};
 
-                    const peakHeight = (peakHoldArray[i] / 255) * canvas.height;
-                    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-                    canvasCtx.fillRect(x, canvas.height - peakHeight, barWidth + 1, 1);
-                }
+$('startBtn').onclick = () => isListening ? stopAudio() : startAudio();
 
-                const averageEnergy = binsInWindowCount > 0 ? (totalEnergyInWindow / binsInWindowCount) : 0;
+async function startAudio() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = parseFloat($('smoothSlider').value);
+        microphone = audioCtx.createMediaStreamSource(stream);
+        gainNode = audioCtx.createGain();
+        gainNode.gain.value = parseFloat($('gainSlider').value);
+        microphone.connect(gainNode);
+        gainNode.connect(analyser);
 
-                canvasCtx.strokeStyle = 'rgba(255, 46, 147, 0.8)';
-                canvasCtx.lineWidth = 2;
-                const threshY = canvas.height - ((threshold / 255) * canvas.height);
-                canvasCtx.beginPath(); canvasCtx.moveTo(0, threshY); canvasCtx.lineTo(canvas.width, threshY); canvasCtx.stroke();
+        isListening = true;
+        $('startBtn').textContent = 'Stoppen'; $('startBtn').classList.add('stop');
+        $('dot').classList.add('on'); $('statusText').textContent = 'Aktiv';
+        noiseFloor = 20; adaptiveThresh = 25; state = STATE_IDLE;
 
-                // Trigger-Bedingung nutzt jetzt das variable 'currentHoldoff' statt dem festen COOLDOWN_MS
-                if (averageEnergy > threshold && now - lastTriggerTime > currentHoldoff) {
-                    count++; counterDisplay.innerText = count; lastTriggerTime = now;
-                    document.body.style.backgroundColor = '#1a2929';
-                    setTimeout(() => { if(isListening) document.body.style.backgroundColor = '#121212'; }, 80);
-                }
+        lastJumpInterval = setInterval(() => {
+            if (lastJumpTS !== null)
+                $('lastJump').textContent = ((Date.now() - lastJumpTS) / 1000).toFixed(1);
+        }, 100);
+        draw();
+    } catch(e) { $('statusText').textContent = 'Mikrofonzugriff fehlgeschlagen'; }
+}
+
+function stopAudio() {
+    isListening = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    if (audioCtx) audioCtx.close();
+    if (lastJumpInterval) { clearInterval(lastJumpInterval); lastJumpInterval = null; }
+    $('startBtn').textContent = 'Starten'; $('startBtn').classList.remove('stop');
+    $('dot').classList.remove('on'); $('statusText').textContent = 'Gestoppt';
+    const c = $('canvas'); c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+
+const freqData = new Uint8Array(1024);
+const peakHold = new Uint8Array(1024);
+const peakTime = new Float64Array(1024);
+
+function draw() {
+    if (!isListening) return;
+    rafId = requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(freqData);
+
+    const canvas = $('canvas');
+    if (canvas.width !== canvas.clientWidth) { canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }
+    const W = canvas.width, H = canvas.height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+
+    const now = Date.now();
+    const sr = audioCtx.sampleRate;
+    const energy = computeEnergy(freqData, sr);
+    const holdoff = parseInt($('holdoffSlider').value);
+    const noiseAlpha = parseFloat($('noiseAlphaSlider').value);
+    const mult = parseFloat($('multSlider').value);
+    const hyst = parseFloat($('hystSlider').value);
+
+    if (energy < adaptiveThresh * 0.8) {
+        noiseFloor = noiseFloor * (1 - noiseAlpha) + energy * noiseAlpha;
+        if (mode === 'auto') adaptiveThresh = noiseFloor * mult;
+    }
+    const threshold = mode === 'auto' ? adaptiveThresh : parseFloat($('threshSlider').value);
+
+    switch (state) {
+        case STATE_IDLE:
+            if (energy > threshold) {
+                count++; $('counter').textContent = count;
+                $('counter').classList.add('flash'); setTimeout(() => $('counter').classList.remove('flash'), 120);
+                const fo = $('flashOverlay'); fo.classList.add('on'); setTimeout(() => fo.classList.remove('on'), 80);
+                lastTriggerTime = now; lastJumpTS = now; jumpTimes.push(now); updateSPM();
+                state = STATE_ACTIVE;
             }
-            draw();
-        } catch (err) { console.error(err); statusDisplay.innerText = "Fehler: Mikrofonzugriff fehlgeschlagen."; }
+            break;
+        case STATE_ACTIVE:
+            if (energy < threshold * hyst) state = STATE_HOLDOFF;
+            break;
+        case STATE_HOLDOFF:
+            if (now - lastTriggerTime > holdoff) state = STATE_IDLE;
+            break;
     }
 
-    function stopAudio() {
-        isListening = false;
-        if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        if (audioContext) audioContext.close();
-        startBtn.innerText = "Zuhören starten"; startBtn.classList.remove('active'); statusDisplay.innerText = "Mikrofon: Aus";
-        document.body.style.backgroundColor = '#121212';
-        canvasCtx.fillStyle = '#000000'; canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+    const barW = W / freqData.length;
+    const binHz = sr / analyser.fftSize;
+    for (let i = 0; i < freqData.length; i++) {
+        const f = i * binHz;
+        if (f > 18000) break;
+        const v = freqData[i];
+        if (v > peakHold[i]) { peakHold[i] = v; peakTime[i] = now; }
+        else if (now - peakTime[i] > 900) peakHold[i] = Math.max(0, peakHold[i] - 2);
+        const bh = (v / 255) * H, x = i * barW;
+        ctx.fillStyle = f < 300 ? '#333' : f < 800 ? '#0064c8' : f < 3000 ? '#00e5ff' : f < 8000 ? '#00c878' : '#2a2a3a';
+        ctx.fillRect(x, H - bh, barW + 0.5, bh);
+        ctx.fillStyle = 'rgba(255,255,255,.2)';
+        ctx.fillRect(x, H - (peakHold[i] / 255) * H, barW + 0.5, 1);
     }
+
+    const thY = H - (threshold / 255) * H;
+    ctx.strokeStyle = state === STATE_ACTIVE ? '#ff2e93' : 'rgba(255,46,147,.5)';
+    ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(0, thY); ctx.lineTo(W, thY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const eW = Math.min(W, (energy / 255) * W * 2);
+    const g = ctx.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, 'rgba(0,229,255,.7)'); g.addColorStop(1, 'rgba(255,46,147,.7)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, eW, 2);
+}
 </script>
 </body>
 </html>
