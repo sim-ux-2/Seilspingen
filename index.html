@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Seilspring-Zähler Pro</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #ffffff;
+            --accent-color: #00adb5;
+            --danger-color: #ff2e93;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: background-color 0.1s ease;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+        }
+        h1 { text-align: center; margin-top: 0; color: var(--accent-color); font-size: 1.8rem; }
+        .counter-display {
+            font-size: 5rem;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            color: var(--text-color);
+            text-shadow: 0 0 10px rgba(0,173,181,0.3);
+        }
+        .control-group {
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 8px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-color);
+        }
+        .val-display {
+            float: right;
+            color: var(--accent-color);
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 10px;
+        }
+        .btn-start { background-color: var(--accent-color); color: #fff; }
+        .btn-start.active { background-color: var(--danger-color); }
+        .btn-reset { background-color: #333; color: #fff; }
+        .visualizer {
+            width: 100%;
+            height: 120px;
+            background: #000;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status {
+            text-align: center;
+            font-style: italic;
+            color: #888;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Seilspring-Zähler</h1>
+    <div class="status" id="status">Mikrofon: Aus</div>
+    <div class="counter-display" id="counter">0</div>
+    <canvas class="visualizer" id="visualizer"></canvas>
+    <button class="btn btn-start" id="startBtn">Zuhören starten</button>
+    <button class="btn btn-reset" id="resetBtn">Zähler zurücksetzen</button>
+
+    <div class="control-group">
+        <label>Frequenz-Bereich ab:<span class="val-display" id="freqVal">4000 Hz</span></label>
+        <input type="range" id="freqSlider" min="1000" max="12000" step="100" value="4000">
+    </div>
+    <div class="control-group">
+        <label>Mikrofon-Verstärkung<span class="val-display" id="gainVal">5.0x</span></label>
+        <input type="range" id="gainSlider" min="1" max="15" step="0.5" value="5">
+    </div>
+    <div class="control-group">
+        <label>Empfindlichkeit<span class="val-display" id="threshVal">3</span></label>
+        <input type="range" id="threshSlider" min="0" max="50" step="0.5" value="3">
+    </div>
+    <div class="control-group">
+        <label>Sperrzeit (Holdoff)<span class="val-display" id="holdoffVal">300 ms</span></label>
+        <!-- Neuer Regler für die minimale Pause zwischen zwei gezählten Sprüngen -->
+        <input type="range" id="holdoffSlider" min="150" max="600" step="10" value="300">
+    </div>
+</div>
+
+<script>
+    let audioContext, analyser, microphone, gainNode, isListening = false, count = 0, animationFrameId;
+    let lastTriggerTime = 0;
+    let peakHoldArray = []; 
+    let peakHoldTimeArray = []; 
+
+    const startBtn = document.getElementById('startBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const counterDisplay = document.getElementById('counter');
+    const statusDisplay = document.getElementById('status');
+    const canvas = document.getElementById('visualizer');
+    const canvasCtx = canvas.getContext('2d');
+    const freqSlider = document.getElementById('freqSlider');
+    const freqVal = document.getElementById('freqVal');
+    const gainSlider = document.getElementById('gainSlider');
+    const gainVal = document.getElementById('gainVal');
+    const threshSlider = document.getElementById('threshSlider');
+    const threshVal = document.getElementById('threshVal');
+    const holdoffSlider = document.getElementById('holdoffSlider');
+    const holdoffVal = document.getElementById('holdoffVal');
+
+    freqSlider.oninput = () => freqVal.innerText = `${freqSlider.value} Hz`;
+    gainSlider.oninput = () => {
+        gainVal.innerText = `${gainSlider.value}x`;
+        if (gainNode && audioContext) {
+            gainNode.gain.setValueAtTime(parseFloat(gainSlider.value), audioContext.currentTime);
+        }
+    };
+    threshSlider.oninput = () => threshVal.innerText = threshSlider.value;
+    holdoffSlider.oninput = () => holdoffVal.innerText = `${holdoffSlider.value} ms`;
+
+    resetBtn.onclick = () => { count = 0; counterDisplay.innerText = count; };
+    startBtn.onclick = async () => { if (isListening) { stopAudio(); } else { await startAudio(); } };
+
+    async function startAudio() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, 
+                video: false 
+            });
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            microphone = audioContext.createMediaStreamSource(stream);
+            
+            gainNode = audioContext.createGain();
+            gainNode.gain.setValueAtTime(parseFloat(gainSlider.value), audioContext.currentTime);
+            
+            analyser.fftSize = 4096; 
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            peakHoldArray = new Uint8Array(bufferLength);
+            peakHoldTimeArray = new Float64Array(bufferLength);
+            
+            microphone.connect(gainNode);
+            gainNode.connect(analyser);
+            
+            isListening = true;
+            startBtn.innerText = "Zuhören stoppen";
+            startBtn.classList.add('active');
+            statusDisplay.innerText = "Höre im ungefilterten Roh-Modus...";
+
+            function draw() {
+                if (!isListening) return;
+                animationFrameId = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+
+                if(canvas.width !== canvas.clientWidth) {
+                    canvas.width = canvas.clientWidth;
+                    canvas.height = canvas.clientHeight;
+                }
+                canvasCtx.fillStyle = '#000000';
+                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                const startFreqCutoff = parseInt(freqSlider.value);
+                const threshold = parseFloat(threshSlider.value);
+                const currentHoldoff = parseInt(holdoffSlider.value); // Auslesen des aktuellen Sliders
+                const sampleRate = audioContext.sampleRate;
+                const now = Date.now();
+                
+                let totalEnergyInWindow = 0;
+                let binsInWindowCount = 0;
+                const barWidth = canvas.width / bufferLength;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    const currentBinFreq = (i * sampleRate) / analyser.fftSize;
+                    const val = dataArray[i];
+
+                    if (val > peakHoldArray[i]) {
+                        peakHoldArray[i] = val;
+                        peakHoldTimeArray[i] = now;
+                    } else if (now - peakHoldTimeArray[i] > 1000) {
+                        peakHoldArray[i] = Math.max(0, peakHoldArray[i] - 1.5); 
+                    }
+
+                    const isInsideTargetWindow = (currentBinFreq >= startFreqCutoff);
+                    
+                    if (isInsideTargetWindow) {
+                        canvasCtx.fillStyle = 'rgb(0, 173, 185)'; 
+                        totalEnergyInWindow += val;
+                        binsInWindowCount++;
+                    } else {
+                        canvasCtx.fillStyle = `rgb(${val/3}, ${val/3}, ${val/3})`; 
+                    }
+
+                    const barHeight = (val / 255) * canvas.height;
+                    const x = i * barWidth;
+                    canvasCtx.fillRect(x, canvas.height - barHeight, barWidth + 1, barHeight);
+
+                    const peakHeight = (peakHoldArray[i] / 255) * canvas.height;
+                    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                    canvasCtx.fillRect(x, canvas.height - peakHeight, barWidth + 1, 1);
+                }
+
+                const averageEnergy = binsInWindowCount > 0 ? (totalEnergyInWindow / binsInWindowCount) : 0;
+
+                canvasCtx.strokeStyle = 'rgba(255, 46, 147, 0.8)';
+                canvasCtx.lineWidth = 2;
+                const threshY = canvas.height - ((threshold / 255) * canvas.height);
+                canvasCtx.beginPath(); canvasCtx.moveTo(0, threshY); canvasCtx.lineTo(canvas.width, threshY); canvasCtx.stroke();
+
+                // Trigger-Bedingung nutzt jetzt das variable 'currentHoldoff' statt dem festen COOLDOWN_MS
+                if (averageEnergy > threshold && now - lastTriggerTime > currentHoldoff) {
+                    count++; counterDisplay.innerText = count; lastTriggerTime = now;
+                    document.body.style.backgroundColor = '#1a2929';
+                    setTimeout(() => { if(isListening) document.body.style.backgroundColor = '#121212'; }, 80);
+                }
+            }
+            draw();
+        } catch (err) { console.error(err); statusDisplay.innerText = "Fehler: Mikrofonzugriff fehlgeschlagen."; }
+    }
+
+    function stopAudio() {
+        isListening = false;
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        if (audioContext) audioContext.close();
+        startBtn.innerText = "Zuhören starten"; startBtn.classList.remove('active'); statusDisplay.innerText = "Mikrofon: Aus";
+        document.body.style.backgroundColor = '#121212';
+        canvasCtx.fillStyle = '#000000'; canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+</script>
+</body>
+</html>
